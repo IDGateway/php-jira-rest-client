@@ -44,6 +44,11 @@ class IssueSearchResult
     public $nextPageToken;
 
     /**
+     * @var string
+     */
+    public $isLast;
+
+    /**
      * @return int
      */
     public function getStartAt()
@@ -141,5 +146,10 @@ class IssueSearchResult
     public function setNextPageToken($nextPageToken)
     {
         $this->nextPageToken = $nextPageToken;
+    }
+
+    public function getIsLast()
+    {
+        return $this->isLast;
     }
 }
