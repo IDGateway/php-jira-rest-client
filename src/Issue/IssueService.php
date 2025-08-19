@@ -543,24 +543,18 @@ class IssueService extends \JiraRestApi\JiraClient
      */
     public function search($jql, $startAt = 0, $maxResults = 15, $fields = [], $expand = [], $validateQuery = true)
     {
-        $queryParams = [
+        $data = json_encode([
+            'expand'        => '',
+            'fields'        => $fields,
+            'fieldsByKeys' => true,
             'jql'           => $jql,
-            'startAt'       => $startAt,
             'maxResults'    => $maxResults,
-            'validateQuery' => $validateQuery,
-        ];
+            'nextPageToken' => null,
+            'properties'    => [],
+            'reconcileIssues' => [],
+        ]);
 
-        if (!empty($fields)) {
-            $queryParams['fields'] = is_array($fields) ? implode(',', $fields) : $fields;
-        }
-        if (!empty($expand)) {
-            $queryParams['expand'] = is_array($expand) ? implode(',', $expand) : $expand;
-        }
-
-        $ret = $this->getRequest('/search/jql', $queryParams);
-
-        $this->log->info("Result=\n".$ret);
-
+        $ret = $this->exec('search//jql', $data, 'POST');
         $json = json_decode($ret);
 
         $result = null;
