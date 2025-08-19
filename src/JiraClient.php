@@ -189,6 +189,112 @@ class JiraClient
         return $haystack;
     }
 
+    public function getRequest($context, array $queryParams = [], $cookieFile = null)
+    {
+        $contextWithParams = $context;
+        if (!empty($queryParams)) {
+            $contextWithParams .= $this->buildEncodedQueryString($queryParams);
+        }
+        
+        $url = $this->createUrlByContext($contextWithParams);
+
+        $this->log->info("Curl GET: $url");
+
+        curl_reset($this->curl);
+        $ch = $this->curl;
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_URL, $url);
+
+        curl_setopt($ch, CURLOPT_HTTPGET, true);
+
+        $curl_http_headers = [
+            'Accept: */*',
+            'Content-Type: application/json',
+            'X-Atlassian-Token: no-check'
+        ];
+
+        $this->authorization($ch, $curl_http_headers, $cookieFile);
+
+        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, $this->getConfiguration()->isCurlOptSslVerifyHost());
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, $this->getConfiguration()->isCurlOptSslVerifyPeer());
+        if ($this->getConfiguration()->isCurlOptSslCert()) {
+            curl_setopt($ch, CURLOPT_SSLCERT, $this->getConfiguration()->isCurlOptSslCert());
+        }
+        if ($this->getConfiguration()->isCurlOptSslCertPassword()) {
+            curl_setopt($ch, CURLOPT_SSLCERTPASSWD, $this->getConfiguration()->isCurlOptSslCertPassword());
+        }
+        if ($this->getConfiguration()->isCurlOptSslKey()) {
+            curl_setopt($ch, CURLOPT_SSLKEY, $this->getConfiguration()->isCurlOptSslKey());
+        }
+        if ($this->getConfiguration()->isCurlOptSslKeyPassword()) {
+            curl_setopt($ch, CURLOPT_SSLKEYPASSWD, $this->getConfiguration()->isCurlOptSslKeyPassword());
+        }
+        if ($this->getConfiguration()->getTimeout()) {
+            curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, $this->getConfiguration()->getTimeout());
+        }
+
+        curl_setopt($ch, CURLOPT_USERAGENT, $this->getConfiguration()->getCurlOptUserAgent());
+
+        // curl_setopt(): CURLOPT_FOLLOWLOCATION cannot be activated when an open_basedir is set
+        if (!function_exists('ini_get') || !ini_get('open_basedir')) {
+            curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+        }
+
+        curl_setopt($ch, CURLOPT_ENCODING, '');
+
+        // Add API V3 header if needed
+        if ($this->isRestApiV3()) {
+            $curl_http_headers[] = 'x-atlassian-force-account-id: true';
+        }
+
+        curl_setopt(
+            $ch,
+            CURLOPT_HTTPHEADER,
+            $curl_http_headers
+        );
+
+        curl_setopt($ch, CURLOPT_VERBOSE, $this->getConfiguration()->isCurlOptVerbose());
+
+        // Add proxy settings to the curl.
+        $this->proxyConfigCurlHandle($ch);
+
+        $this->log->debug('Curl exec='.$url);
+        $response = curl_exec($ch);
+
+        // if request failed or have no result.
+        if (!$response) {
+            $this->http_response = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $body = curl_error($ch);
+
+            /*
+             * 201: The request has been fulfilled, resulting in the creation of a new resource.
+             * 204: The server successfully processed the request, but is not returning any content.
+             */
+            if ($this->http_response === 204 || $this->http_response === 201 || $this->http_response === 200) {
+                return true;
+            }
+
+            // HostNotFound, No route to Host, etc Network error
+            $msg = sprintf('CURL Error: http response=%d, %s', $this->http_response, $body);
+
+            $this->log->error($msg);
+
+            throw new JiraException($msg);
+        } else {
+            // if request was ok, parsing http response code.
+            $this->http_response = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+
+            // don't check 301, 302 because setting CURLOPT_FOLLOWLOCATION
+            if ($this->http_response != 200 && $this->http_response != 201) {
+                throw new JiraException('CURL HTTP Request Failed: Status Code : '
+                    .$this->http_response.', URL:'.$url
+                    ."\nError Message : ".$response, $this->http_response, null, $response);
+            }
+        }
+
+        return $response;
+    }
+
     /**
      * Execute REST request.
      *
@@ -568,6 +674,34 @@ class JiraClient
         }
 
         return $queryParam;
+    }
+
+    /**
+     * Convert array to URL-encoded HTTP query string (used by getRequest).
+     *
+     * @param array $paramArray
+     *
+     * @return string
+     */
+    protected function buildEncodedQueryString(array $paramArray)
+    {
+        $queryParam = '?';
+
+        foreach ($paramArray as $key => $value) {
+            $v = null;
+
+            // some param field(Ex: expand) type is array.
+            if (is_array($value)) {
+                $v = implode(',', $value);
+            } else {
+                $v = $value;
+            }
+
+            $queryParam .= urlencode($key).'='.urlencode($v).'&';
+        }
+
+        // Remove trailing '&'
+        return rtrim($queryParam, '&');
     }
 
     /**
