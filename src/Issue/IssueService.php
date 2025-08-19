@@ -541,7 +541,7 @@ class IssueService extends \JiraRestApi\JiraClient
      *
      * @return IssueSearchResult
      */
-    public function search($jql, $startAt = 0, $maxResults = 15, $fields = [], $expand = [], $validateQuery = true)
+    public function search($jql, $startAt = 0, $maxResults = 15, $fields = [], $expand = [], $validateQuery = true, $nextPageToken = null)
     {
         $data = json_encode([
             'expand'        => '',
@@ -549,7 +549,7 @@ class IssueService extends \JiraRestApi\JiraClient
             'fieldsByKeys' => true,
             'jql'           => $jql,
             'maxResults'    => $maxResults,
-            'nextPageToken' => null,
+            'nextPageToken' => $nextPageToken,
             'properties'    => [],
             'reconcileIssues' => [],
         ]);
