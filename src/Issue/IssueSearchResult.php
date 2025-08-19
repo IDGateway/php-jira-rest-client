@@ -39,6 +39,16 @@ class IssueSearchResult
     public $issues;
 
     /**
+     * @var string
+     */
+    public $nextPageToken;
+
+    /**
+     * @var string
+     */
+    public $isLast;
+
+    /**
      * @return int
      */
     public function getStartAt()
@@ -126,5 +136,20 @@ class IssueSearchResult
     public function setExpand($expand)
     {
         $this->expand = $expand;
+    }
+
+    public function getNextPageToken()
+    {
+        return $this->nextPageToken;
+    }
+
+    public function setNextPageToken($nextPageToken)
+    {
+        $this->nextPageToken = $nextPageToken;
+    }
+
+    public function getIsLast()
+    {
+        return $this->isLast;
     }
 }
